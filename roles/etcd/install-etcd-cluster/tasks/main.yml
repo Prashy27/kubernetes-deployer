@@ -1,0 +1,26 @@
+---
+- name: cfssl | Download & Install cfssl
+  include_tasks: install-cfssl.yml
+
+- name: Gen_certs | Generate certificates for etcd hosts
+  include_tasks: generate-certificates.yml
+
+- name: install etcd
+  include_tasks: install-etcd.yml
+
+- name: set cluster key in ssm parameter store
+  community.aws.aws_ssm_parameter_store:
+    name: "{{ cluster_name }}-etcd"
+    value: created
+    region: "{{ cluster_region }}"
+  when:
+    - inventory_hostname in groups['kube_etcd'][0]
+
+#- name: pause for 30 secs to give time for etcd to be ready
+#  pause:
+#    seconds: 30
+#  run_once: yes
+- name: Ensure that etcd is running before proceeding
+  wait_for:
+    host: "{{ etcd_endpoint }}"
+    port: 2379

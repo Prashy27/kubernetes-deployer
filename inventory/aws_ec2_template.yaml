@@ -1,0 +1,21 @@
+---
+plugin: aws_ec2
+cache_timeout: 0
+iam_role_arn: ${IAM_ROLE}
+regions:
+  - ${CLUSTER_REGION}
+filters:
+  tag:${FILTER_TAGKEY}:
+    - ${CLUSTER_NAME}
+keyed_groups:
+  - key: tags['${TAG}']
+    prefix: kube
+    parent_group: "k8s_cluster"
+compose:
+  ansible_host: private_ip_address
+  ip: private_ip_address
+  access_ip: private_ip_address
+  ansible_ssh_user: "'ubuntu'"
+  ansible_python_interpreter: "'/usr/bin/python3'"
+  ansible_ssh_private_key_file: "'${KEYFILE}'"
+  ansible_ssh_common_args: "'-o StrictHostKeyChecking=no'"

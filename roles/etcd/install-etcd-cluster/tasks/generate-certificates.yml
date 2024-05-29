@@ -1,0 +1,129 @@
+---
+- name: Gen_certs | clearing existing etcd SSL directory (if any)
+  file:
+    path: "{{ etcd_ssl_dir }}"
+    state: absent
+  become: true
+  when:
+    - gen_certs
+    - inventory_hostname == groups['kube_etcd'][0]
+  delegate_to: "{{ groups['kube_etcd'][0] }}"
+
+- name: Gen_certs | creating local etcd scripts dir
+  file:
+    path: "{{ etcd_scripts_dir }}"
+    state: directory
+  become: true
+  when:
+    - gen_certs
+    - inventory_hostname == groups['kube_etcd'][0]
+  delegate_to: "{{ groups['kube_etcd'][0] }}"
+
+- name: Gen_certs | write etcd-root-ca-csr json
+  template:
+    src: etcd-root-ca-csr.json.j2
+    dest: "{{ etcd_scripts_dir }}/etcd-root-ca-csr.json"
+#  run_once: yes
+  delegate_to: "{{ groups['kube_etcd'][0] }}"
+  when:
+    - gen_certs
+    - inventory_hostname == groups['kube_etcd'][0]
+  become: true
+
+- name: Gen_certs | write etcd-gencert json
+  template:
+    src: etcd-gencert.json.j2
+    dest: "{{ etcd_scripts_dir }}/etcd-gencert.json"
+#  run_once: yes
+  delegate_to: "{{ groups['kube_etcd'][0] }}"
+  when:
+    - gen_certs
+    - inventory_hostname == groups['kube_etcd'][0]
+  become: true
+
+- name: Gen_certs | write etcd-node-ca-csr json
+  template:
+    src: etcd-nodes-ca-csr.json.j2
+    dest: "{{ etcd_scripts_dir }}/{{ hostvars[item]['inventory_hostname'] }}.json"
+  with_items:
+    - "{{ groups['k8s_cluster'] }}"
+#  run_once: yes
+  delegate_to: "{{ groups['kube_etcd'][0] }}"
+  when:
+    - gen_certs
+    - inventory_hostname == groups['kube_etcd'][0]
+  become: true
+
+- name: Gen_certs | copy make-certs.sh
+  template:
+    src: make-certs.sh.j2
+    dest: "{{ etcd_scripts_dir }}/make-certs.sh"
+#  run_once: yes
+  delegate_to: "{{ groups['kube_etcd'][0] }}"
+  when:
+    - gen_certs
+    - inventory_hostname == groups['kube_etcd'][0]
+  become: true
+
+- name: Gen_certs | run make-certs.sh
+  command: "bash -x {{ etcd_scripts_dir }}/make-certs.sh -d {{ etcd_ssl_dir }} -c {{ etcd_scripts_dir }}"
+  environment:
+    - ETCDS: "{% for m in groups['k8s_cluster'] %}
+                    {{ m }}
+              {% endfor %}"
+  delegate_to: "{{ groups['kube_etcd'][0] }}"
+#  run_once: yes
+  when:
+    - gen_certs
+    - inventory_hostname == groups['kube_etcd'][0]
+  become: true
+
+- name: Gen_certs | create ssl directory on other etcd nodes
+  file:
+    path: "{{ etcd_ssl_dir }}"
+    group: "{{ cfssl.group }}"
+    state: directory
+    owner: "{{ cfssl.owner }}"
+    recurse: yes
+  become: true
+  when:
+    - gen_certs
+    - inventory_hostname in groups['k8s_cluster']
+    - inventory_hostname != groups['kube_etcd'][0]
+
+- name: Gen_certs | copy certificates to other etcd nodes
+  slurp:
+    src: "{{ item }}"
+  register: etcd_master_certs
+  with_items:
+    - "{{ etcd_ssl_dir }}/etcd-root-ca.pem"
+    - "{{ etcd_ssl_dir }}/etcd-root-ca-key.pem"
+    - "{{ etcd_ssl_dir }}/etcd-root-ca.csr"
+    - "{{ etcd_ssl_dir }}/etcd-gencert.json"
+    - "[{% for node in groups['k8s_cluster'] %}
+        '{{ etcd_ssl_dir }}/{{ node }}.pem',
+        '{{ etcd_ssl_dir }}/{{ node }}-key.pem',
+        '{{ etcd_ssl_dir }}/{{ node }}.csr',
+        '{{ etcd_ssl_dir }}/{{ node }}.json',
+        {% endfor %}]"
+  delegate_to: "{{ groups['kube_etcd'][0] }}"
+  when:
+    - gen_certs
+    - inventory_hostname in groups['k8s_cluster']
+    - inventory_hostname != groups['kube_etcd'][0]
+  become: true
+
+- name: Gen_certs | write certs
+  copy:
+    dest: "{{ item.item }}"
+    content: "{{ item.content | b64decode }}"
+    group: "{{ cfssl.group }}"
+    owner: "{{ cfssl.owner }}"
+    mode: 0640
+  with_items: "{{ etcd_master_certs.results }}"
+  when:
+    - gen_certs
+    - inventory_hostname != groups['kube_etcd'][0]
+  loop_control:
+    label: "{{ item.item }}"
+  become: true

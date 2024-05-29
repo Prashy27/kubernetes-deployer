@@ -1,0 +1,62 @@
+#!/bin/bash
+set -o errexit
+set -o pipefail
+usage()
+{
+    cat << EOF
+Create self signed certificates
+
+Usage : $(basename $0) -f <config> [-d <ssldir>]
+      -h | --help         : Show this message
+      -d | --ssldir       : Directory where the certificates will be installed
+      -c | --certsdir     : Certficates directory
+
+
+               ex :
+               $(basename $0) -f openssl.conf -d /srv/ssl
+EOF
+}
+
+# Options parsing
+while (($#)); do
+    case "$1" in
+        -h | --help)   usage;   exit 0;;
+        -d | --ssldir) SSLDIR="${2}"; shift 2;;
+        -c | --ssldir) CERTDIR="${2}"; shift 2;;
+        -g | --ssldir) GENCERT="${2}"; shift 2;;
+        *)
+            usage
+            echo "ERROR : Unknown option"
+            exit 3
+        ;;
+    esac
+done
+
+if [ -z ${SSLDIR} ]; then
+    SSLDIR="/etc/ssl/etcd"
+fi
+
+tmpdir=$(mktemp -d /tmp/etcd_cacert.XXXXXX)
+trap 'rm -rf "${tmpdir}"' EXIT
+cd "${tmpdir}"
+
+mkdir -p "${SSLDIR}"
+
+if [ -e "$SSLDIR/etcd-root-ca-key.pem" ]; then
+    # Reuse existing CA
+    cp $SSLDIR/{etcd-root-ca.pem,etcd-root-ca-key.pem} .
+else
+  cfssl gencert --initca=true ${CERTDIR}/etcd-root-ca-csr.json | cfssljson --bare ${tmpdir}/etcd-root-ca
+  openssl x509 -in ${tmpdir}/etcd-root-ca.pem -text -noout
+fi
+
+if [ -n "$ETCDS" ]; then
+    for host in $ETCDS; do
+      sed -i "s/\"CN\": \"localhost\"/\"CN\": \""$host"\"/g" ${CERTDIR}/${host}.json
+      cfssl gencert --ca ${tmpdir}/etcd-root-ca.pem --ca-key ${tmpdir}/etcd-root-ca-key.pem --config ${CERTDIR}/etcd-gencert.json ${CERTDIR}/${host}.json | cfssljson --bare ${tmpdir}/${host}
+      openssl x509 -in ${tmpdir}/${host}.pem -text -noout
+    done
+fi
+
+cp ${tmpdir}/* ${CERTDIR}/
+mv ${CERTDIR}/* ${SSLDIR}

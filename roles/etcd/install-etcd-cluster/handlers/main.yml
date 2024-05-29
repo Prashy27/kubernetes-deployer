@@ -1,0 +1,22 @@
+---
+- name: start etcd
+  command: /bin/true
+  notify:
+    - etcd | reload systemd
+    - etcd | enable etcd
+    - etcd | start etcd
+
+- name: etcd | reload systemd
+  systemd:
+    daemon_reload: true
+
+- name: etcd | enable etcd
+  service:
+    name: etcd
+    enabled: yes
+
+- name: etcd | start etcd
+  service:
+    name: etcd
+    state: started
+

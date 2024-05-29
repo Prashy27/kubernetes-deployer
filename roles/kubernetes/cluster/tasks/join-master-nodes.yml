@@ -1,0 +1,14 @@
+- name: join additional master nodes (if any) | Reset kube components (if any)
+  shell: kubeadm reset --force
+  become: true
+  register: reset_masters
+
+- name: join additional master nodes (if any) | join master nodes with config file
+  shell: kubeadm join --config "{{ kube_dir }}/kubeadm-cp-join-config.yaml"
+  become: true
+  when: reset_masters is succeeded
+  register: join_master
+
+- name: join additional master nodes (if any) | check status of extra masters
+  debug:
+    msg: "{{ join_master }}"

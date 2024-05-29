@@ -1,0 +1,21 @@
+- name: etcd | check if etcd servcie exists
+  stat:
+    path: /etc/systemd/system/etcd.service
+  register: etcd_status
+
+- name: etcd | stopping etcd if existing previously
+  service:
+    name: etcd
+    state: stopped
+  when:
+    - etcd_status.stat.exists
+    - inventory_hostname in groups['kube_etcd']
+  become: true
+
+- name: install etcd | clearing existing etcd data directory (if any)
+  file:
+    path: "{{ etcd_data_dir }}/"
+    state: absent
+  when:
+    - inventory_hostname in groups['kube_etcd']
+  become: true

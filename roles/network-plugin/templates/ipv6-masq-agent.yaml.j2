@@ -1,0 +1,39 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ip-masq-agent
+  namespace: kube-system
+data:
+  ip-masq-agent: |
+          enable-ipv6: true
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ip-masq-agent
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: ip-masq-agent
+  template:
+    metadata:
+      labels:
+        k8s-app: ip-masq-agent
+    spec:
+      hostNetwork: true
+      containers:
+      - name: ip-masq-agent
+        image: 380349541627.dkr.ecr.us-east-1.amazonaws.com/tools/ip-masq-agent:v2.5.0-4-g83d8fe8-dirty
+        securityContext:
+          privileged: false
+          capabilities:
+            add: ["NET_ADMIN", "NET_RAW"]
+        volumeMounts:
+          - name: config
+            mountPath: /etc/config
+      volumes:
+        - name: config
+          configMap:
+            name: ip-masq-agent

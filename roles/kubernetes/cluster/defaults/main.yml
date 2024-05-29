@@ -1,0 +1,23 @@
+kube_dir: "/etc/kubernetes"
+ssl_dir: "/etc/ssl/etcd"
+kube_controlplane_endpoint: "{{ hostvars[groups['kube_master'][0]]['access_ip'] }}"
+num_of_master: "{{ groups['kube_master']|length }}"
+kube_version: "1.16.6"
+etcd_cluster: |-
+  {% for item in groups['kube_etcd'] -%}
+      https://{{ hostvars[item]['access_ip'] | default(hostvars[item]['ip'] | default(fallback_ips[item])) }}:2379{% if not loop.last %},{% endif %}
+  {%- endfor %}
+
+cluster_name: "kubeadm-cluster"
+pod_subnet_ipv4: 10.88.0.0/16
+pod_subnet_ipv6: 2001:db8:245::/64
+svc_subnet_ipv4: 10.89.0.0/16
+svc_subnet_ipv6: 2001:db8:245::/112
+
+cloud_cluster: false
+cloud_provider: "aws"
+cloud_routes: "false"
+# This variable controls whether Ansible is going to deploy a new cluster from scratch or just joing the new worker nodes. It is true by default so deploy new clusters from scratch
+initialize: true
+is_cluster_up: false
+kube_audit_dir: "/etc/k8s/audit-policy"

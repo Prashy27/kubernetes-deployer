@@ -1,0 +1,61 @@
+- name: install etcd | create local release etcd directory
+  file:
+    path: "{{ local_release_dir }}/etcd"
+    state: directory
+  when:
+    - inventory_hostname in groups['kube_etcd']
+  become: true
+
+- name: install etcd | unarchive etcd
+  unarchive:
+    src: "{{ etcd_download_url }}/{{ etcd_version }}/etcd-{{ etcd_version }}-linux-amd64.tar.gz"
+    dest: "{{ local_release_dir }}/etcd"
+    remote_src: yes
+  when:
+    - inventory_hostname in groups['kube_etcd']
+  become: true
+
+- name: install etcd | install etcd
+  copy:
+    src: "{{ local_release_dir }}/etcd/etcd-{{ etcd_version }}-linux-amd64/{{ item }}"
+    dest: "{{ bin_dir }}"
+    owner: "root"
+    mode: 0755
+    remote_src: yes
+  with_items:
+    - etcd
+    - etcdctl
+  become: true
+  when:
+    - inventory_hostname in groups['kube_etcd']
+
+- name: install etcd | copy etcd service
+  template:
+    src: etcd.service.j2
+    dest: "/etc/systemd/system/etcd.service"
+  when:
+    - inventory_hostname in groups['kube_etcd']
+  become: true
+
+- name: etcd | reload systemd
+  systemd:
+    daemon_reload: true
+  when:
+    - inventory_hostname in groups['kube_etcd']
+  become: true
+
+- name: etcd | enable etcd
+  service:
+    name: etcd
+    enabled: yes
+  when:
+    - inventory_hostname in groups['kube_etcd']
+  become: true
+
+- name: etcd | start etcd
+  service:
+    name: etcd
+    state: started
+  when:
+    - inventory_hostname in groups['kube_etcd']
+  become: true

@@ -1,0 +1,17 @@
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: JoinConfiguration
+discovery:
+  bootstrapToken:
+    token: {{ kube_token.msg }}
+{% if load_balancer_url != "" %}
+    apiServerEndpoint: "{{ load_balancer_url }}:6443"
+{% else %}
+    apiServerEndpoint: "{{ kube_controlplane_endpoint }}:6443"
+{% endif %}
+    caCertHashes: ["{{ kube_sha.msg }}"]
+nodeRegistration:
+  name: {{ inventory_hostname }}
+{% if cloud_cluster %}
+  kubeletExtraArgs:
+    cloud-provider: {{ cloud_provider}}
+{% endif %}

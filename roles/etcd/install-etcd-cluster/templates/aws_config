@@ -1,0 +1,3 @@
+[profile etcdscript]
+role_arn = arn:aws:iam::380349541627:role/avn-s3-etcd-autoscaling-access
+credential_source = Ec2InstanceMetadata

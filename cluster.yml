@@ -1,0 +1,22 @@
+---
+- name: Gather facts
+  import_playbook: facts.yml
+
+- hosts: k8s_cluster
+  roles:
+    - { role: kubernetes/reset-cluster, tags: pre-install }
+    - { role: pre-reqs, tags: pre-install }
+    - { role: docker, tags: pre-install }
+    - { role: kubernetes/install-kube-components, tags: pre-install }
+
+- hosts: k8s_cluster
+  gather_facts: false
+  roles:
+    - { role: etcd/reset-etcd-cluster, tags: install-etcd }
+    - { role: etcd/install-etcd-cluster, tags: install-etcd }
+
+- hosts: k8s_cluster
+  gather_facts: false
+  roles:
+    - { role: kubernetes/cluster, tags: install-k8s }
+    - { role: network-plugin, tags: install-k8s }

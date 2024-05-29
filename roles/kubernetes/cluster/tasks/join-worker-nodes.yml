@@ -1,0 +1,47 @@
+- name: join worker nodes | Reset kube components (if any)
+  shell: kubeadm reset --force
+  become: true
+  register: reset_worker
+  when: initialize
+
+- name: join worker nodes | join worker nodes with config file
+  shell: kubeadm join --config "{{ kube_dir }}/kubeadm-worker-join-config.yaml"
+  become: true
+  when:
+    - reset_worker is succeeded
+    - "'cluster-worker' in hostvars[inventory_hostname].tags['aws:autoscaling:groupName']"
+  register: join_worker
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+
+- name: join worker nodes | check status of worker nodes
+  debug:
+    msg: "{{ join_worker }}"
+
+- name: join worker nodes | join prometheus worker nodes with config file
+  shell: kubeadm join --config "{{ kube_dir }}/kubeadm-prometheus-worker-join-config.yaml"
+  become: true
+  when:
+    - reset_worker is succeeded
+    - "'prometheus-worker' in hostvars[inventory_hostname].tags['aws:autoscaling:groupName']"
+  register: join_prom_worker
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+
+- name: join worker nodes | check status of worker nodes
+  debug:
+    msg: "{{ join_prom_worker }}"
+
+- name: join worker nodes | join envoy worker nodes with config file
+  shell: kubeadm join --config "{{ kube_dir }}/kubeadm-envoy-worker-join-config.yaml"
+  become: true
+  when:
+    - reset_worker is succeeded
+    - "'envoy-worker' in hostvars[inventory_hostname].tags['aws:autoscaling:groupName']"
+  register: join_envoy_worker
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+
+- name: join worker nodes | check status of envoy nodes
+  debug:
+    msg: "{{ join_envoy_worker }}"

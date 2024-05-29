@@ -1,0 +1,70 @@
+- name: initialize first master | check etcd version to see if its running
+  uri:
+    url: "https://{{ etcd_endpoint }}:2379/version"
+    client_cert: "{{ ssl_dir }}/{{ inventory_hostname }}.pem"
+    client_key: "{{ ssl_dir }}/{{ inventory_hostname }}-key.pem"
+    validate_certs: no
+    method: GET
+  when:
+    - reset_cluster is succeeded or initialize
+    - inventory_hostname in groups['kube_master'][0]
+  become: true
+  retries: 10
+  delay: 5
+  register: etcd_version
+  until: etcd_version.status == 200
+
+- name: initialize first master | print etcd version
+  debug:
+    msg: "{{ etcd_version }}"
+  when:
+    - reset_cluster is succeeded or initialize
+    - inventory_hostname in groups['kube_master'][0]
+
+- name: initialize first master | fail playbook when etcd not running
+  fail:
+    msg: "etcd not running"
+  when:
+    - reset_cluster is succeeded or initialize
+    - inventory_hostname in groups['kube_master'][0]
+    - '"etcdserver" not in etcd_version.json'
+
+- name: configure kernel settings for CIS (needs to be part of the AMI later on)
+  become: true
+  shell: |
+    cat > /etc/sysctl.d/90-kubelet.conf << EOF
+    vm.overcommit_memory=1
+    kernel.panic=10
+    kernel.panic_on_oops=1
+    EOF
+    sysctl -p /etc/sysctl.d/90-kubelet.conf
+- name: initialize first master | init first master with config file
+  shell: kubeadm init --config "{{ kube_dir }}/kubeadm-config.yaml"
+  when:
+    - reset_cluster is succeeded or initialize
+    - inventory_hostname in groups['kube_master'][0]
+  become: true
+  register: init_cluster
+
+- name: initialize first master | check if init was successful
+  debug:
+    msg: "{{ init_cluster }}"
+  when:
+    - inventory_hostname in groups['kube_master'][0]
+
+- name: initialize first master | set is_cluster_up variable
+  set_fact:
+    is_cluster_up: true
+  when:
+    - inventory_hostname in groups['kube_master'][0]
+    - '"Your Kubernetes control-plane has initialized successfully" in init_cluster.stdout'
+
+- name: initialize first master | copy kubeconfig file to /data/kube/ directory
+  fetch:
+    src: /etc/kubernetes/admin.conf
+    dest: /data/kube/{{ cluster_name }}
+    flat: yes
+  become: yes
+  when:
+    - is_cluster_up
+    - inventory_hostname in groups['kube_master'][0]

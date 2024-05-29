@@ -1,0 +1,23 @@
+- name: generate kubeadm config | created kube dir
+  file:
+    path: "{{ kube_dir }}"
+    state: directory
+    owner: root
+  when:
+    - inventory_hostname in groups['k8s_cluster']
+  become: true
+
+- name: generate kubeadm config | copy kubeadm config to master nodes
+  template:
+    src: kubeadm-config.yaml.j2
+    dest: "{{ kube_dir }}/kubeadm-config.yaml"
+  when:
+    - inventory_hostname in groups['kube_master']
+  become: true
+- name: Enable auditing for the kubeadm-config.yaml file
+  become: true
+  shell: |
+    apt update
+    apt install auditd -y
+    systemctl start auditd
+    auditctl -w /etc/kubernetes/kubeadm-config.yaml -p war -k kubeadmconfig

@@ -1,0 +1,10 @@
+kube_version: "1.18.3"
+docker_version: '{% if kube_version == "1.16.6" %}5:18.09.9~3-0~ubuntu{% elif kube_version == "1.17.6" %}5:19.03.8~3-0~ubuntu{% elif kube_version == "1.18.2" or kube_version == "1.18.3" %}5:19.03.8~3-0~ubuntu{% else %}5:19.03.8~3-0~ubuntu{% endif %}'
+ipv6_enabled: false
+load_balancer_url: ""
+cluster_region: ""
+k8s_master_node: |-
+  {% for host in groups['kube_master'] %}
+  {%   if inventory_hostname == host %} inventory_hostname {% endif %}
+  {% endfor %}
+etcd_hosts: []

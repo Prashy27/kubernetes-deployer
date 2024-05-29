@@ -1,0 +1,23 @@
+---
+- name: Install apt-transport-https using apt
+  apt: name={{ item }} state=latest update_cache=yes
+  loop: [ 'apt-transport-https', 'curl']
+  become: true
+
+- name: Add kubeadm GPG apt Key
+  apt_key:
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    state: present
+  become: true
+
+- name: Add kubernetes Repository
+  apt_repository:
+    repo: deb https://apt.kubernetes.io/ kubernetes-xenial main
+    state: present
+    filename: kubernetes
+  become: true
+
+- name: Install kubernetes components
+  apt: name={{ item }} update_cache=yes force=yes
+  loop: [ 'kubelet={{ kube_version }}-00', 'kubeadm={{ kube_version }}-00', 'kubectl={{ kube_version }}-00' ]
+  become: true

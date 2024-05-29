@@ -1,0 +1,47 @@
+local_release_dir: "/tmp/releases"
+bin_dir: "/usr/local/bin"
+etcd_scripts_dir: "{{ local_release_dir }}/etcd_scripts"
+etcd_ssl_dir: "/etc/ssl/etcd"
+gen_certs: true
+etcd_data_dir: "/var/lib/etcd"
+#cfssl variables
+
+cfssl:
+  url: "https://pkg.cfssl.org/R1.2/cfssl_linux-amd64"
+  owner: "root"
+  group: "root"
+  mode: "755"
+cfssljson:
+  url: "https://pkg.cfssl.org/R1.2/cfssljson_linux-amd64"
+  owner: "root"
+  group: "root"
+  mode: "755"
+
+#certificate authorities
+key_algo: "rsa"
+key_size: 2048
+cert_duration: "867000h"
+city: "Hilversum"
+province: "Noord-Holland"
+country: "NL"
+
+etcd_version: "v3.4.7"
+etcd_download_url: "https://github.com/coreos/etcd/releases/download"
+
+etcd_member_name: |-
+  {% for host in groups['kube_etcd'] %}
+  {%   if inventory_hostname == host %}{{ hostvars[host].etcd_member_name | default("etcd" + loop.index|string) }}{% endif %}
+  {% endfor %}
+
+etcd_address: |-
+  {% for host in groups['kube_etcd'] %}
+  {%   if inventory_hostname == host %}{{ hostvars[host].access_ip }}{% endif %}
+  {% endfor %}
+
+etcd_peer_addresses: |-
+  {% for item in groups['kube_etcd'] -%}
+    {{ hostvars[item].etcd_member_name | default("etcd" + loop.index|string) }}=https://{{ hostvars[item].access_ip | default(hostvars[item].ip | default(fallback_ips[item])) }}:2380{% if not loop.last %},{% endif %}
+  {%- endfor %}
+
+etcd_token: "etcd"
+etcd_cluster_state: "new"

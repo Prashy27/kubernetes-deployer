@@ -1,0 +1,130 @@
+- name: get tokens | create a token for joining additional master nodes
+  shell: kubeadm token create --kubeconfig "{{ kube_dir }}/admin.conf" --print-join-command
+  register: master_token_result
+  delegate_to: "{{ groups['kube_master'][0] }}"
+  run_once: yes
+  become: true
+
+- name: get tokens | extract token
+  debug:
+    msg: "{{ master_token_result.stdout | regex_search(regexp, '\\2') | first }}"
+  register: kube_token
+  vars:
+    regexp: '([^\s]+\s+){4}([^\s]+)'
+
+- name: get tokens | extract SHA
+  debug:
+    msg: "{{ master_token_result.stdout | regex_search(regexp, '\\2') | first }}"
+  register: kube_sha
+  vars:
+    regexp: '([^\s]+\s+){6}([^\s]+)'
+
+- name: get tokens | create a certificate for joining additional master and worker nodes
+  shell: kubeadm init phase upload-certs --upload-certs --config "{{ kube_dir }}/kubeadm-config.yaml"
+  register: cert_result
+  delegate_to: "{{ groups['kube_master'][0] }}"
+  run_once: yes
+  become: true
+
+- name: get tokens | extract certificate
+  debug:
+    msg: "{{ cert_result.stdout_lines[2] }}"
+  register: kube_cert
+
+- name: get tokens | copy kubeadm join config to other master nodes
+  template:
+    src: kubeadm-cp-join-config.yaml.j2
+    dest: "{{ kube_dir }}/kubeadm-cp-join-config.yaml"
+  become: true
+  when:
+    - (groups['kube_master']|length>1)
+    - inventory_hostname in groups['kube_master']
+    - inventory_hostname != groups['kube_master'][0]
+
+- name: get tokens | copy kubeadm join config to worker nodes
+  template:
+    src: kubeadm-worker-join-config.yaml.j2
+    dest: "{{ kube_dir }}/kubeadm-worker-join-config.yaml"
+  become: true
+  when:
+    - inventory_hostname in groups['kube_worker']
+
+- name: get tokens | copy kubeadm join config to prometheus worker nodes
+  template:
+    src: kubeadm-prometheus-worker-join-config.yaml.j2
+    dest: "{{ kube_dir }}/kubeadm-prometheus-worker-join-config.yaml"
+  become: true
+  when:
+    - inventory_hostname in groups['kube_worker']
+    - "'prometheus-worker' in hostvars[inventory_hostname].tags['aws:autoscaling:groupName']"
+
+- name: get tokens | copy kubeadm join config to envoy worker nodes
+  template:
+    src: kubeadm-envoy-worker-join-config.yaml.j2
+    dest: "{{ kube_dir }}/kubeadm-envoy-worker-join-config.yaml"
+  become: true
+  when:
+    - inventory_hostname in groups['kube_worker']
+    - "'envoy-worker' in hostvars[inventory_hostname].tags['aws:autoscaling:groupName']"
+
+#- name: get tokens | create a token for joining worker nodes
+#  shell: kubeadm token create --print-join-command --kubeconfig "{{ kube_dir }}/admin.conf"
+#  register: worker_token_result
+#  delegate_to: "{{ groups['kube_master'][0] }}"
+#  when:
+#    - inventory_hostname in groups['kube_worker']
+#  become: true
+#
+#- name: get tokens | extract the master token value
+#  set_fact:
+#    master_kube_token: "{{ master_token_result.stdout | regex_search(regexp, '\\2') | first }}"
+#  vars:
+#    regexp: '([^\s]+\s+){4}([^\s]+)'
+#  when:
+#    - (groups['kube_master']|length>1)
+#    - inventory_hostname in groups['kube_master']
+#    - inventory_hostname != groups['kube_master'][0]
+
+#- name: get tokens | extract the master SHA value
+#  set_fact:
+#    master_kube_hash: "{{ master_token_result.stdout | regex_search(regexp, '\\2') | first }}"
+#  vars:
+#    regexp: '([^\s]+\s+){6}([^\s]+)'
+#  when:
+#    - (groups['kube_master']|length>1)
+#    - inventory_hostname in groups['kube_master']
+#    - inventory_hostname != groups['kube_master'][0]
+#
+#- name: get tokens | extract the worker token value
+#  set_fact:
+#    worker_kube_token: "{{ worker_token_result.stdout | regex_search(regexp, '\\2') | first }}"
+#  vars:
+#    regexp: '([^\s]+\s+){4}([^\s]+)'
+#  when:
+#    - inventory_hostname in groups['kube_worker']
+#
+#- name: get tokens | extract the worker SHA value
+#  set_fact:
+#    worker_kube_hash: "{{ worker_token_result.stdout | regex_search(regexp, '\\2') | first }}"
+#  vars:
+#    regexp: '([^\s]+\s+){6}([^\s]+)'
+#  when:
+#    - inventory_hostname in groups['kube_worker']
+#
+#- name: get tokens | create a certificate for joining additional master and worker nodes
+#  shell: kubeadm init phase upload-certs --upload-certs --config "{{ kube_dir }}/kubeadm-config.yaml"
+#  register: cert_result
+#  delegate_to: "{{ groups['kube_master'][0] }}"
+#  when:
+#    - (groups['kube_master']|length>1)
+#    - inventory_hostname in groups['kube_master']
+#    - inventory_hostname != groups['kube_master'][0]
+#  become: true
+#
+#- name: get tokens | extract the certificate value
+#  set_fact:
+#    kube_cert: "{{ cert_result.stdout_lines[2] }}"
+#  when:
+#    - (groups['kube_master']|length>1)
+#    - inventory_hostname in groups['kube_master']
+#    - inventory_hostname != groups['kube_master'][0]

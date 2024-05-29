@@ -1,0 +1,25 @@
+---
+- name: Install docker pre-req packes using apt
+  apt: name={{ item }} state=latest update_cache=yes
+  loop: [ 'apt-transport-https', 'ca-certificates', 'curl', 'gnupg-agent', 'software-properties-common' ]
+  become: true
+
+- name: Add Docker GPG apt Key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+  become: true
+
+- name: Add Docker Repository
+  apt_repository:
+    repo: deb https://download.docker.com/linux/ubuntu bionic stable
+    state: present
+  become: true
+
+- debug:
+    msg: "{{ docker_version }}"
+
+- name: Install docker
+  apt: name={{ item }} update_cache=yes force=yes
+  loop: [ 'docker-ce={{ docker_version }}-{{ ansible_distribution_release|lower }}', 'docker-ce-cli={{ docker_version }}-{{ ansible_distribution_release|lower }}', 'containerd.io' ]
+  become: true

@@ -1,0 +1,32 @@
+---
+- name: install calico network plugin | copy the network plugin config
+  template:
+    src: calico-config.yaml.j2
+    dest: "{{ kube_dir }}/calico-config.yaml"
+  when:
+    - inventory_hostname in groups['kube_master'][0]
+  become: true
+
+- name: install calico network plugin | apply the network plugin to the cluster
+  shell: kubectl --kubeconfig="{{ kube_dir }}/admin.conf" apply -f "{{ kube_dir }}/calico-config.yaml"
+  delegate_to: "{{ groups['kube_master'][0] }}"
+  run_once: yes
+  become: true
+
+- name: install calico network plugin | copy ip-masq-agent config
+  template:
+    src: ipv6-masq-agent.yaml.j2
+    dest: "{{ kube_dir }}/ipv6-masq-agent.yaml"
+  when:
+    - ipv6_enabled
+    - inventory_hostname in groups['kube_master'][0]
+  become: true
+
+- name: install calico network plugin | apply ip-masq-agent config for IPv6 internet connectivity
+  shell: kubectl --kubeconfig="{{ kube_dir }}/admin.conf" apply -f "{{ kube_dir }}/ipv6-masq-agent.yaml"
+  delegate_to: "{{ groups['kube_master'][0] }}"
+  run_once: yes
+  when:
+    - ipv6_enabled
+    - inventory_hostname in groups['kube_master'][0]
+  become: true

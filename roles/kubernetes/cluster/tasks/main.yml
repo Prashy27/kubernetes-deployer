@@ -1,0 +1,90 @@
+---
+- name: generate kubeadm config
+  include_tasks: generate-kubeadm-config.yml
+
+- name: initialize first master
+  include_tasks: initialize-first-master.yml
+  when: initialize
+
+- name: get tokens
+  include_tasks: get-tokens.yml
+
+- name: join other master nodes (if any)
+  include_tasks: join-master-nodes.yml
+  when:
+    - (groups['kube_master']|length>1)
+    - inventory_hostname in groups['kube_master']
+    - inventory_hostname != groups['kube_master'][0]
+    - initialize
+
+- name: join worker nodes
+  include_tasks: join-worker-nodes.yml
+  when:
+    - inventory_hostname in groups['kube_worker']
+
+- name: taint prometheus nodes
+  shell: "kubectl taint nodes {{ inventory_hostname }} dedicated=prom:NoSchedule --kubeconfig /etc/kubernetes/admin.conf"
+  delegate_to: "{{ groups['kube_master'][0] }}"
+  when:
+    - inventory_hostname in groups['kube_worker']
+    - "'prometheus-worker' in hostvars[inventory_hostname].tags['aws:autoscaling:groupName']"
+  become: true
+
+- name: label prometheus nodes
+  shell: "kubectl label node {{ inventory_hostname }} node-role.kubernetes.io/prometheus= --kubeconfig {{ kube_dir }}/admin.conf"
+  delegate_to: "{{ groups['kube_master'][0] }}"
+  when:
+    - inventory_hostname in groups['kube_worker']
+    - "'prometheus-worker' in hostvars[inventory_hostname].tags['aws:autoscaling:groupName']"
+  become: true
+
+- name: label worker nodes
+  shell: "kubectl label node {{ inventory_hostname }} node-role.kubernetes.io/appcloud= --kubeconfig {{ kube_dir }}/admin.conf"
+  delegate_to: "{{ groups['kube_master'][0] }}"
+  when:
+    - inventory_hostname in groups['kube_worker']
+    - "'cluster-worker' in hostvars[inventory_hostname].tags['aws:autoscaling:groupName']"
+  become: true
+
+- name: label envoy nodes
+  shell: "kubectl label node {{ inventory_hostname }} node-role.kubernetes.io/envoy=  --kubeconfig /etc/kubernetes/admin.conf"
+  delegate_to: "{{ groups['kube_master'][0] }}"
+  when:
+    - inventory_hostname in groups['kube_worker']
+    - "'envoy-worker' in hostvars[inventory_hostname].tags['aws:autoscaling:groupName']"
+  become: true
+
+- name: taint envoy nodes
+  shell: "kubectl taint nodes {{ inventory_hostname }} dedicated=envoy:NoSchedule --kubeconfig /etc/kubernetes/admin.conf"
+  delegate_to: "{{ groups['kube_master'][0] }}"
+  when:
+    - inventory_hostname in groups['kube_worker']
+    - "'envoy-worker' in hostvars[inventory_hostname].tags['aws:autoscaling:groupName']"
+  become: true
+
+- name: set cluster key in ssm parameter store
+  community.aws.aws_ssm_parameter_store:
+    name: "{{ cluster_name }}"
+    value: created
+    region: "{{ cluster_region }}"
+  when:
+    - inventory_hostname in groups['kube_master'][0]
+    - is_cluster_up
+
+- name: set kubeadm version key in ssm parameter store
+  community.aws.aws_ssm_parameter_store:
+    name: "kubeadm_version"
+    value: "{{ kube_version }}-00"
+    region: "{{ cluster_region }}"
+  when:
+    - inventory_hostname in groups['kube_master'][0]
+    - is_cluster_up
+
+- name: set docker version key in ssm parameter store
+  community.aws.aws_ssm_parameter_store:
+    name: "docker_version"
+    value: "{{ docker_version }}"
+    region: "{{ cluster_region }}"
+  when:
+    - inventory_hostname in groups['kube_master'][0]
+    - is_cluster_up

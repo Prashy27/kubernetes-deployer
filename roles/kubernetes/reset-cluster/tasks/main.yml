@@ -1,0 +1,15 @@
+- name: initialize first master | Reset kube components (if any)
+  shell: kubeadm reset --force
+  when:
+    - inventory_hostname in groups['kube_master'][0]
+  become: true
+  register: reset_cluster
+  ignore_errors: yes
+
+- name: generate kubeadm config | clearing existing kube directory (if any)
+  file:
+    path: "{{ kube_dir }}"
+    state: absent
+  when:
+    - inventory_hostname in groups['k8s_cluster']
+  become: true

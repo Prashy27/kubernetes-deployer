@@ -1,0 +1,1 @@
+{"key": {"algo": "rsa", "size": 2048}, "names": [{"O": "etcd", "OU": "etcd Security", "L": "Hilversum", "ST": "Noord-Holland", "C": "NL"}], "CN": "${GET_HOSTNAME}", "hosts": ["${ETCD_URL}", "127.0.0.1", "localhost", $existing_peer_ips]}

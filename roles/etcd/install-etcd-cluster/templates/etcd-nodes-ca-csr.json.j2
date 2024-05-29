@@ -1,0 +1,25 @@
+{
+  "key": {
+    "algo": "{{ key_algo }}",
+    "size": {{ key_size }}
+  },
+  "names": [
+    {
+      "O": "etcd",
+      "OU": "etcd Security",
+      "L": "{{ city }}",
+      "ST": "{{ province }}",
+      "C": "{{ country }}"
+    }
+  ],
+  "CN": "{{ hostvars[item]['inventory_hostname'] }}",
+  "hosts": [
+    "{{ etcd_endpoint }}",
+    "127.0.0.1",
+    "localhost",
+ {% for i in groups['kube_etcd'] %}
+   "{{ hostvars[i]['ansible_host'] }}"{% if not loop.last %},{% endif %}
+
+ {% endfor %}
+  ]
+}

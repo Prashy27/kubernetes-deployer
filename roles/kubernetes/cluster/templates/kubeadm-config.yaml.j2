@@ -1,0 +1,61 @@
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: ClusterConfiguration
+{% if ipv6_enabled %}
+featureGates:
+  IPv6DualStack: true
+{% endif %}
+networking:
+  dnsDomain: cluster.local
+{% if ipv6_enabled %}
+  podSubnet: {{ pod_subnet_ipv4 }},{{ pod_subnet_ipv6 }}
+  serviceSubnet: {{ svc_subnet_ipv4 }},{{ svc_subnet_ipv6 }}
+{% else %}
+  podSubnet: {{ pod_subnet_ipv4 }}
+  serviceSubnet: {{ svc_subnet_ipv4 }}
+{% endif %}
+clusterName: {{ cluster_name }}
+kubernetesVersion: "v{{ kube_version }}"
+etcd:
+  external:
+      endpoints:
+      - https://{{ etcd_endpoint }}:2379
+      caFile: {{ ssl_dir }}/etcd-root-ca.pem
+      certFile: {{ ssl_dir }}/{{ inventory_hostname }}.pem
+      keyFile: {{ ssl_dir }}/{{ inventory_hostname }}-key.pem
+{% if load_balancer_url != "" %}
+controlPlaneEndpoint: "{{ load_balancer_url }}:6443"
+{% else %}
+controlPlaneEndpoint: "{{ kube_controlplane_endpoint }}:6443"
+{% endif %}
+apiServer:
+{% if cloud_cluster %}
+  extraArgs:
+    cloud-provider: {{ cloud_provider }}
+    profiling: "false"
+{% endif %}
+{% if load_balancer_url != "" %}
+  certSANS:
+    - {{ load_balancer_url }}
+{% endif %}
+controllerManager:
+{% if cloud_cluster %}
+  extraArgs:
+    cloud-provider: {{ cloud_provider }}
+    configure-cloud-routes: "{{ cloud_routes }}"
+    terminated-pod-gc-threshold: "10"
+{% endif %}
+---
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: InitConfiguration
+nodeRegistration:
+  name: {{ inventory_hostname }}
+{% if cloud_cluster %}
+  kubeletExtraArgs:
+    cloud-provider: {{ cloud_provider}}
+    anonymous-auth: "false"
+    authorization-mode: Webhook
+    read-only-port: "0"
+    streaming-connection-idle-timeout: 5m
+    protect-kernel-defaults: "true"
+    tls-cipher-suites: "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_GCM_SHA256"
+{% endif %}

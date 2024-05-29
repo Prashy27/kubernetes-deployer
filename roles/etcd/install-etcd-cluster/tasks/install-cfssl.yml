@@ -1,0 +1,57 @@
+---
+- name: "check if cfssl already exists"
+  stat: path=/usr/local/bin/cfssl
+  register: cfssl_status
+  when:
+    - inventory_hostname == groups['kube_etcd'][0]
+
+- name: "create local release dir"
+  file:
+    path: "{{ local_release_dir }}"
+    state: directory
+  when:
+    - inventory_hostname == groups['kube_etcd'][0]
+    - not cfssl_status.stat.exists
+
+- name: "download cfssl"
+  get_url:
+    url: "{{ cfssl.url }}"
+    dest: "{{ local_release_dir }}/cfssl"
+    owner: "{{ cfssl.owner }}"
+    group: "{{ cfssl.group }}"
+    mode: "{{ cfssl.mode }}"
+  register: cfssl_download_result
+  until: "'OK' in cfssl_download_result.msg or 'file already exists' in cfssl_download_result.msg or '304' in cfssl_download_result.msg"
+  retries: 4
+  when:
+    - inventory_hostname == groups['kube_etcd'][0]
+    - not cfssl_status.stat.exists
+
+- name: "download cfssljson"
+  get_url:
+    url: "{{ cfssljson.url }}"
+    dest: "{{ local_release_dir }}/cfssljson"
+    owner: "{{ cfssljson.owner }}"
+    group: "{{ cfssljson.group }}"
+    mode: "{{ cfssljson.mode }}"
+  register: cfssljson_download_result
+  until: "'OK' in cfssljson_download_result.msg or 'file already exists' in cfssljson_download_result.msg or '304' in cfssljson_download_result.msg"
+  retries: 4
+  when:
+    - inventory_hostname == groups['kube_etcd'][0]
+    - not cfssl_status.stat.exists
+
+- name: "Install cfssl"
+  copy:
+    src: "{{ local_release_dir }}/{{ item }}"
+    dest: "/usr/local/bin"
+    owner: "{{ cfssl.owner }}"
+    mode: "{{ cfssl.mode }}"
+    remote_src: yes
+  when:
+    - inventory_hostname == groups['kube_etcd'][0]
+    - not cfssl_status.stat.exists
+  loop:
+    - cfssl
+    - cfssljson
+  become: true
